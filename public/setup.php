@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo = get_db($dbPath);
         initialize_schema($pdo);
         $defaultGuests = [
-            'Andreas mit Familie',
+            'Andreas',
             'Maria',
             'Lena',
             'Thomas',
@@ -39,6 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
         $seedTimestamp = (new DateTimeImmutable())->format(DateTimeInterface::ATOM);
         seed_guest_list($pdo, $defaultGuests, $seedTimestamp);
+        seed_settings($pdo);
 
         $configContents = "<?php\n\nreturn [\n" .
             "    'admin_user' => '" . addslashes($adminUser) . "',\n" .

@@ -43,6 +43,12 @@ function initialize_schema(PDO $pdo): void
             created_at TEXT NOT NULL
         )'
     );
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )'
+    );
 }
 
 function fetch_food_entries(PDO $pdo): array
@@ -96,6 +102,84 @@ function seed_guest_list(PDO $pdo, array $names, string $timestamp): void
 
     if ($count === 0 && $names !== []) {
         replace_guest_list($pdo, $names, $timestamp);
+    }
+}
+
+function fetch_settings(PDO $pdo): array
+{
+    $defaults = [
+        'survey_title' => 'Omas 90. Geburtstag',
+        'gate_question_count' => 1,
+        'gate_questions' => [
+            [
+                'question' => 'Wie lautet der Vorname von Oma?',
+                'answer' => 'ilse',
+            ],
+        ],
+    ];
+
+    $stmt = $pdo->query('SELECT key, value FROM settings');
+    $rows = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+    $title = $rows['survey_title'] ?? $defaults['survey_title'];
+    $count = isset($rows['gate_question_count'])
+        ? max(1, (int) $rows['gate_question_count'])
+        : $defaults['gate_question_count'];
+
+    $questions = $defaults['gate_questions'];
+    if (isset($rows['gate_questions'])) {
+        $decoded = json_decode($rows['gate_questions'], true);
+        if (is_array($decoded)) {
+            $questions = $decoded;
+        }
+    }
+
+    if ($questions === []) {
+        $questions = $defaults['gate_questions'];
+    }
+
+    if (count($questions) < $count) {
+        $questions = array_pad($questions, $count, $defaults['gate_questions'][0]);
+    }
+
+    return [
+        'survey_title' => $title,
+        'gate_question_count' => $count,
+        'gate_questions' => $questions,
+    ];
+}
+
+function update_settings(PDO $pdo, string $title, int $questionCount, array $questions): void
+{
+    $pdo->beginTransaction();
+    $stmt = $pdo->prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (:key, :value)');
+    $stmt->execute([
+        ':key' => 'survey_title',
+        ':value' => $title,
+    ]);
+    $stmt->execute([
+        ':key' => 'gate_question_count',
+        ':value' => (string) $questionCount,
+    ]);
+    $stmt->execute([
+        ':key' => 'gate_questions',
+        ':value' => json_encode($questions, JSON_UNESCAPED_UNICODE),
+    ]);
+    $pdo->commit();
+}
+
+function seed_settings(PDO $pdo): void
+{
+    $stmt = $pdo->query('SELECT COUNT(*) FROM settings');
+    $count = (int) $stmt->fetchColumn();
+
+    if ($count === 0) {
+        update_settings($pdo, 'Omas 90. Geburtstag', 1, [
+            [
+                'question' => 'Wie lautet der Vorname von Oma?',
+                'answer' => 'ilse',
+            ],
+        ]);
     }
 }
 

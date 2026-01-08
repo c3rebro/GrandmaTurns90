@@ -15,8 +15,9 @@ if ($config === null) {
 }
 
 $pdo = get_db($config['db_path']);
+initialize_schema($pdo);
 $defaultGuests = [
-    'Andreas mit Familie',
+    'Andreas',
     'Maria',
     'Lena',
     'Thomas',
@@ -25,6 +26,7 @@ $defaultGuests = [
 
 $seedTimestamp = (new DateTimeImmutable())->format(DateTimeInterface::ATOM);
 seed_guest_list($pdo, $defaultGuests, $seedTimestamp);
+seed_settings($pdo);
 
 $authError = '';
 $actionMessage = '';
@@ -84,6 +86,40 @@ if (!empty($_SESSION['admin_authenticated'])) {
         }
     }
 
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
+        $title = trim((string) ($_POST['survey_title'] ?? ''));
+        $questionCount = (int) ($_POST['gate_question_count'] ?? 1);
+        $questionCount = max(1, min(3, $questionCount));
+        $questions = [];
+        $settingsError = '';
+
+        for ($index = 1; $index <= $questionCount; $index++) {
+            $questionText = trim((string) ($_POST['gate_question_' . $index] ?? ''));
+            $answerText = trim((string) ($_POST['gate_answer_' . $index] ?? ''));
+
+            if ($questionText === '' || $answerText === '') {
+                $settingsError = 'Bitte alle Torfragen und Antworten ausfüllen.';
+                break;
+            }
+
+            $questions[] = [
+                'question' => $questionText,
+                'answer' => $answerText,
+            ];
+        }
+
+        if ($title === '') {
+            $settingsError = 'Bitte einen Titel angeben.';
+        }
+
+        if ($settingsError !== '') {
+            $actionMessage = $settingsError;
+        } else {
+            update_settings($pdo, $title, $questionCount, $questions);
+            $actionMessage = 'Einstellungen aktualisiert.';
+        }
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_response'])) {
         $id = (int) ($_POST['response_id'] ?? 0);
         $participantName = trim((string) ($_POST['participant_name'] ?? ''));
@@ -127,6 +163,7 @@ $editingId = (int) ($_GET['edit'] ?? 0);
 
 $responses = [];
 $guestList = [];
+$settings = [];
 if (!empty($_SESSION['admin_authenticated'])) {
     // Query all responses with participant data for the admin table.
     $stmt = $pdo->query(
@@ -137,6 +174,7 @@ if (!empty($_SESSION['admin_authenticated'])) {
     );
     $responses = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $guestList = fetch_guest_list($pdo);
+    $settings = fetch_settings($pdo);
 }
 ?>
 <!doctype html>
@@ -171,6 +209,36 @@ if (!empty($_SESSION['admin_authenticated'])) {
                     <?php if ($actionMessage !== ''): ?>
                         <p class="text-success fw-semibold"><?= h($actionMessage) ?></p>
                     <?php endif; ?>
+
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h2 class="h5">Einstellungen</h2>
+                            <form method="post">
+                                <label class="form-label" for="survey_title">Titel der Seite</label>
+                                <input class="form-control" type="text" id="survey_title" name="survey_title" value="<?= h($settings['survey_title'] ?? '') ?>" required>
+
+                                <label class="form-label" for="gate_question_count">Anzahl Torfragen</label>
+                                <select class="form-select" id="gate_question_count" name="gate_question_count">
+                                    <?php for ($count = 1; $count <= 3; $count++): ?>
+                                        <option value="<?= $count ?>" <?= ((int) ($settings['gate_question_count'] ?? 1) === $count) ? 'selected' : '' ?>>
+                                            <?= $count ?>
+                                        </option>
+                                    <?php endfor; ?>
+                                </select>
+
+                                <?php for ($index = 1; $index <= 3; $index++): ?>
+                                    <?php $question = $settings['gate_questions'][$index - 1]['question'] ?? ''; ?>
+                                    <?php $answer = $settings['gate_questions'][$index - 1]['answer'] ?? ''; ?>
+                                    <label class="form-label mt-3" for="gate_question_<?= $index ?>">Torfrage <?= $index ?></label>
+                                    <input class="form-control" type="text" id="gate_question_<?= $index ?>" name="gate_question_<?= $index ?>" value="<?= h($question) ?>">
+                                    <label class="form-label mt-2" for="gate_answer_<?= $index ?>">Antwort <?= $index ?></label>
+                                    <input class="form-control" type="text" id="gate_answer_<?= $index ?>" name="gate_answer_<?= $index ?>" value="<?= h($answer) ?>">
+                                <?php endfor; ?>
+
+                                <button class="btn btn-primary w-100 my-3" type="submit" name="update_settings" value="1">Einstellungen speichern</button>
+                            </form>
+                        </div>
+                    </div>
 
                     <div class="card mb-4">
                         <div class="card-body">
