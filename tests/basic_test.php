@@ -9,6 +9,16 @@ $pdo = get_db(':memory:');
 initialize_schema($pdo);
 
 $timestamp = (new DateTimeImmutable())->format(DateTimeInterface::ATOM);
+seed_guest_list($pdo, ['Alice', 'Bob'], $timestamp);
+
+$guestList = fetch_guest_list($pdo);
+sort($guestList);
+assert($guestList === ['Alice', 'Bob'], 'Guest list should be seeded.');
+
+replace_guest_list($pdo, ['Carla'], $timestamp);
+$guestList = fetch_guest_list($pdo);
+assert($guestList === ['Carla'], 'Guest list should be replaceable.');
+
 insert_response($pdo, 'Testperson', 3, 'Kuchen', $timestamp);
 
 $statement = $pdo->query('SELECT participants.name, responses.people_count, responses.food_text FROM responses JOIN participants ON participants.id = responses.participant_id');
