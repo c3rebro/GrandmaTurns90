@@ -52,33 +52,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Setup</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 2rem; background: #f8f4f0; }
-        .card { background: #fff; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); max-width: 420px; }
-        .error { color: #b00020; }
-        .success { color: #2f7d32; }
-        label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
-        input, button { width: 100%; padding: 0.5rem; margin-bottom: 1rem; }
-    </style>
+    <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
 </head>
-<body>
-    <h1>Erst-Setup</h1>
-    <div class="card">
-        <?php if ($error !== ''): ?>
-            <p class="error"><?= h($error) ?></p>
-        <?php endif; ?>
-        <?php if ($success !== ''): ?>
-            <p class="success"><?= h($success) ?></p>
-            <p><a href="index.php">Zur Umfrage</a></p>
-        <?php else: ?>
-            <form method="post">
-                <label for="admin_user">Admin Benutzername</label>
-                <input type="text" id="admin_user" name="admin_user" required>
-                <label for="admin_password">Admin Passwort</label>
-                <input type="password" id="admin_password" name="admin_password" required>
-                <button type="submit">Setup starten</button>
-            </form>
-        <?php endif; ?>
+<body class="bg-light">
+    <div class="container py-5">
+        <h1 class="mb-4">Erst-Setup</h1>
+        <div class="row">
+            <div class="col-12 col-md-6 col-lg-5">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <?php if ($error !== ''): ?>
+                            <p class="text-danger"><?= h($error) ?></p>
+                        <?php endif; ?>
+                        <?php if ($success !== ''): ?>
+                            <p class="text-success fw-semibold"><?= h($success) ?></p>
+                            <p><a class="link-primary" href="index.php">Zur Umfrage</a></p>
+                        <?php else: ?>
+                            <form method="post">
+                                <label class="form-label" for="admin_user">Admin Benutzername</label>
+                                <input class="form-control" type="text" id="admin_user" name="admin_user" required>
+                                <label class="form-label" for="admin_password">Admin Passwort</label>
+                                <input class="form-control" type="password" id="admin_password" name="admin_password" required>
+                                <button class="btn btn-primary w-100" type="submit">Setup starten</button>
+                            </form>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
+    <script src="assets/bootstrap/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

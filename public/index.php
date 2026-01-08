@@ -73,67 +73,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['survey_submit'])) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Omas 90. Geburtstag</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 2rem; background: #f8f4f0; }
-        .card { background: #fff; padding: 1.5rem; margin-bottom: 1.5rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-        label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
-        input, select, button, textarea { width: 100%; padding: 0.5rem; margin-bottom: 1rem; }
-        .error { color: #b00020; }
-        .success { color: #2f7d32; }
-        ul { padding-left: 1.2rem; }
-    </style>
+    <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
 </head>
-<body>
-    <h1>Einladung zum 90. Geburtstag</h1>
+<body class="bg-light">
+    <div class="container py-5">
+        <h1 class="mb-4">Einladung zum 90. Geburtstag</h1>
 
-    <section class="card">
-        <h2>Torfrage</h2>
-        <?php if ($gateError !== ''): ?>
-            <p class="error"><?= h($gateError) ?></p>
-        <?php endif; ?>
-        <form method="post">
-            <label for="given_name">Wie lautet der Vorname von Oma?</label>
-            <input type="text" id="given_name" name="given_name" required>
-            <button type="submit" name="gate_check" value="1">Prüfen</button>
-        </form>
-        <?php if (!empty($_SESSION['gate_passed'])): ?>
-            <p class="success">Super! Du darfst teilnehmen.</p>
-        <?php endif; ?>
-    </section>
+        <section class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h2 class="h4">Torfrage</h2>
+                <?php if ($gateError !== ''): ?>
+                    <p class="text-danger"><?= h($gateError) ?></p>
+                <?php endif; ?>
+                <form method="post">
+                    <label class="form-label" for="given_name">Wie lautet der Vorname von Oma?</label>
+                    <input class="form-control" type="text" id="given_name" name="given_name" required>
+                    <button class="btn btn-primary w-100" type="submit" name="gate_check" value="1">Prüfen</button>
+                </form>
+                <?php if (!empty($_SESSION['gate_passed'])): ?>
+                    <p class="text-success fw-semibold mb-0">Super! Du darfst teilnehmen.</p>
+                <?php endif; ?>
+            </div>
+        </section>
 
-    <section class="card">
-        <h2>Teilnahme &amp; Umfrage</h2>
-        <?php if ($formError !== ''): ?>
-            <p class="error"><?= h($formError) ?></p>
-        <?php endif; ?>
-        <?php if ($successMessage !== ''): ?>
-            <p class="success"><?= h($successMessage) ?></p>
-        <?php endif; ?>
-        <form method="post">
-            <label for="participant">Teilnehmer auswählen</label>
-            <select id="participant" name="participant" required>
-                <option value="">Bitte wählen</option>
-                <?php foreach ($participants as $participant): ?>
-                    <option value="<?= h($participant) ?>"><?= h($participant) ?></option>
-                <?php endforeach; ?>
-            </select>
+        <section class="card shadow-sm">
+            <div class="card-body">
+                <h2 class="h4">Teilnahme &amp; Umfrage</h2>
+                <?php if ($formError !== ''): ?>
+                    <p class="text-danger"><?= h($formError) ?></p>
+                <?php endif; ?>
+                <?php if ($successMessage !== ''): ?>
+                    <p class="text-success fw-semibold"><?= h($successMessage) ?></p>
+                <?php endif; ?>
+                <form method="post">
+                    <label class="form-label" for="participant">Teilnehmer auswählen</label>
+                    <select class="form-select" id="participant" name="participant" required>
+                        <option value="">Bitte wählen</option>
+                        <?php foreach ($participants as $participant): ?>
+                            <option value="<?= h($participant) ?>"><?= h($participant) ?></option>
+                        <?php endforeach; ?>
+                    </select>
 
-            <label for="people_count">Wie viele Personen bringt ihr mit?</label>
-            <input type="number" id="people_count" name="people_count" min="1" required>
+                    <label class="form-label" for="people_count">Wie viele Personen bringt ihr mit?</label>
+                    <input class="form-control" type="number" id="people_count" name="people_count" min="1" required>
 
-            <label for="food_text">Welches Essen bringt ihr mit?</label>
-            <?php if (!empty($foodEntries)): ?>
-                <p>Bereits eingetragen:</p>
-                <ul>
-                    <?php foreach ($foodEntries as $entry): ?>
-                        <li><?= h($entry) ?></li>
-                    <?php endforeach; ?>
-                </ul>
-            <?php endif; ?>
-            <input type="text" id="food_text" name="food_text" placeholder="z.B. Kartoffelsalat" required>
+                    <label class="form-label" for="food_text">Welches Essen bringt ihr mit?</label>
+                    <?php if (!empty($foodEntries)): ?>
+                        <p class="mb-2">Bereits eingetragen:</p>
+                        <ul class="mb-3">
+                            <?php foreach ($foodEntries as $entry): ?>
+                                <li><?= h($entry) ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                    <input class="form-control" type="text" id="food_text" name="food_text" placeholder="z.B. Kartoffelsalat" required>
 
-            <button type="submit" name="survey_submit" value="1">Antwort speichern</button>
-        </form>
-    </section>
+                    <button class="btn btn-success w-100" type="submit" name="survey_submit" value="1">Antwort speichern</button>
+                </form>
+            </div>
+        </section>
+    </div>
+    <script src="assets/bootstrap/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

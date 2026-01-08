@@ -117,89 +117,88 @@ if (!empty($_SESSION['admin_authenticated'])) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Adminbereich</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 2rem; background: #f2f2f2; }
-        .card { background: #fff; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-        th, td { padding: 0.5rem; border-bottom: 1px solid #ddd; text-align: left; }
-        .error { color: #b00020; }
-        .success { color: #2f7d32; }
-        form.inline { display: inline; }
-    </style>
+    <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
 </head>
-<body>
-    <h1>Adminbereich</h1>
-    <div class="card">
-        <?php if (empty($_SESSION['admin_authenticated'])): ?>
-            <?php if ($authError !== ''): ?>
-                <p class="error"><?= h($authError) ?></p>
-            <?php endif; ?>
-            <form method="post">
-                <label for="username">Benutzername</label>
-                <input type="text" id="username" name="username" required>
-                <label for="password">Passwort</label>
-                <input type="password" id="password" name="password" required>
-                <button type="submit" name="admin_login" value="1">Einloggen</button>
-            </form>
-        <?php else: ?>
-            <form method="post">
-                <button type="submit" name="logout" value="1">Abmelden</button>
-            </form>
+<body class="bg-light">
+    <div class="container py-5">
+        <h1 class="mb-4">Adminbereich</h1>
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <?php if (empty($_SESSION['admin_authenticated'])): ?>
+                    <?php if ($authError !== ''): ?>
+                        <p class="text-danger"><?= h($authError) ?></p>
+                    <?php endif; ?>
+                    <form method="post">
+                        <label class="form-label" for="username">Benutzername</label>
+                        <input class="form-control" type="text" id="username" name="username" required>
+                        <label class="form-label" for="password">Passwort</label>
+                        <input class="form-control" type="password" id="password" name="password" required>
+                        <button class="btn btn-primary w-100" type="submit" name="admin_login" value="1">Einloggen</button>
+                    </form>
+                <?php else: ?>
+                    <form method="post" class="mb-3">
+                        <button class="btn btn-outline-secondary" type="submit" name="logout" value="1">Abmelden</button>
+                    </form>
 
-            <?php if ($actionMessage !== ''): ?>
-                <p class="success"><?= h($actionMessage) ?></p>
-            <?php endif; ?>
+                    <?php if ($actionMessage !== ''): ?>
+                        <p class="text-success fw-semibold"><?= h($actionMessage) ?></p>
+                    <?php endif; ?>
 
-            <table>
-                <thead>
-                    <tr>
-                        <th>Teilnehmer</th>
-                        <th>Personen</th>
-                        <th>Essen</th>
-                        <th>Zeitpunkt</th>
-                        <th>Aktionen</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($responses as $response): ?>
-                        <?php if ($editingId === (int) $response['id']): ?>
-                            <tr>
-                                <form method="post">
-                                    <td>
-                                        <input type="text" name="participant_name" value="<?= h($response['participant_name']) ?>" required>
-                                    </td>
-                                    <td>
-                                        <input type="number" name="people_count" min="1" value="<?= h((string) $response['people_count']) ?>" required>
-                                    </td>
-                                    <td>
-                                        <input type="text" name="food_text" value="<?= h($response['food_text']) ?>" required>
-                                    </td>
-                                    <td><?= h($response['created_at']) ?></td>
-                                    <td>
-                                        <input type="hidden" name="response_id" value="<?= h((string) $response['id']) ?>">
-                                        <button type="submit" name="update_response" value="1">Speichern</button>
-                                    </td>
-                                </form>
-                            </tr>
-                        <?php else: ?>
-                            <tr>
-                                <td><?= h($response['participant_name']) ?></td>
-                                <td><?= h((string) $response['people_count']) ?></td>
-                                <td><?= h($response['food_text']) ?></td>
-                                <td><?= h($response['created_at']) ?></td>
-                                <td>
-                                    <a href="admin.php?edit=<?= h((string) $response['id']) ?>">Bearbeiten</a>
-                                    <form method="post" class="inline" onsubmit="return confirm('Wirklich löschen?');">
-                                        <input type="hidden" name="response_id" value="<?= h((string) $response['id']) ?>">
-                                        <button type="submit" name="delete_response" value="1">Löschen</button>
-                                    </form>
-                                </td>
-                            </tr>
-                        <?php endif; ?>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        <?php endif; ?>
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Teilnehmer</th>
+                                    <th>Personen</th>
+                                    <th>Essen</th>
+                                    <th>Zeitpunkt</th>
+                                    <th>Aktionen</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($responses as $response): ?>
+                                    <?php if ($editingId === (int) $response['id']): ?>
+                                        <tr>
+                                            <form method="post">
+                                                <td>
+                                                    <input class="form-control" type="text" name="participant_name" value="<?= h($response['participant_name']) ?>" required>
+                                                </td>
+                                                <td>
+                                                    <input class="form-control" type="number" name="people_count" min="1" value="<?= h((string) $response['people_count']) ?>" required>
+                                                </td>
+                                                <td>
+                                                    <input class="form-control" type="text" name="food_text" value="<?= h($response['food_text']) ?>" required>
+                                                </td>
+                                                <td><?= h($response['created_at']) ?></td>
+                                                <td>
+                                                    <input type="hidden" name="response_id" value="<?= h((string) $response['id']) ?>">
+                                                    <button class="btn btn-success btn-sm" type="submit" name="update_response" value="1">Speichern</button>
+                                                </td>
+                                            </form>
+                                        </tr>
+                                    <?php else: ?>
+                                        <tr>
+                                            <td><?= h($response['participant_name']) ?></td>
+                                            <td><?= h((string) $response['people_count']) ?></td>
+                                            <td><?= h($response['food_text']) ?></td>
+                                            <td><?= h($response['created_at']) ?></td>
+                                            <td class="d-flex flex-wrap gap-2">
+                                                <a class="btn btn-outline-primary btn-sm" href="admin.php?edit=<?= h((string) $response['id']) ?>">Bearbeiten</a>
+                                                <form method="post" onsubmit="return confirm('Wirklich löschen?');">
+                                                    <input type="hidden" name="response_id" value="<?= h((string) $response['id']) ?>">
+                                                    <button class="btn btn-outline-danger btn-sm" type="submit" name="delete_response" value="1">Löschen</button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
     </div>
+    <script src="assets/bootstrap/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
