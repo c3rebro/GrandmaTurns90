@@ -111,14 +111,23 @@ if (!empty($_SESSION['admin_authenticated'])) {
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
         $title = trim((string) ($_POST['survey_title'] ?? ''));
-        $questionCount = (int) ($_POST['gate_question_count'] ?? 1);
-        $questionCount = max(1, min(3, $questionCount));
+        $selectedCount = (int) ($_POST['gate_question_count'] ?? 1);
+        $selectedCount = max(1, min(3, $selectedCount));
         $questions = [];
         $settingsError = '';
+        $maxFilled = 0;
 
-        for ($index = 1; $index <= $questionCount; $index++) {
+        for ($index = 1; $index <= 3; $index++) {
             $questionText = trim((string) ($_POST['gate_question_' . $index] ?? ''));
             $answerText = trim((string) ($_POST['gate_answer_' . $index] ?? ''));
+
+            if ($questionText === '' && $answerText === '') {
+                if ($index <= $selectedCount) {
+                    $settingsError = 'Bitte alle Torfragen und Antworten ausfüllen.';
+                    break;
+                }
+                continue;
+            }
 
             if ($questionText === '' || $answerText === '') {
                 $settingsError = 'Bitte alle Torfragen und Antworten ausfüllen.';
@@ -129,6 +138,7 @@ if (!empty($_SESSION['admin_authenticated'])) {
                 'question' => $questionText,
                 'answer' => $answerText,
             ];
+            $maxFilled = $index;
         }
 
         if ($title === '') {
@@ -141,6 +151,7 @@ if (!empty($_SESSION['admin_authenticated'])) {
             $hintsContent = (string) ($_POST['hints_content'] ?? '');
             $footerContent = (string) ($_POST['footer_content'] ?? '');
 
+            $questionCount = max($selectedCount, $maxFilled);
             update_settings($pdo, $title, $questionCount, $questions, $hintsContent, $footerContent);
             $actionMessage = 'Einstellungen aktualisiert.';
         }

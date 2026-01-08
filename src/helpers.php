@@ -27,7 +27,7 @@ function render_rich_text(string $content): string
         return '';
     }
 
-    $html = (str_contains($trimmed, '<') && str_contains($trimmed, '>'))
+    $html = (strpos($trimmed, '<') !== false && strpos($trimmed, '>') !== false)
         ? $trimmed
         : convert_basic_markdown($trimmed);
 

@@ -103,5 +103,5 @@ assert($remainingVisits === 1, 'Old page visits should be purged.');
 $rendered = render_rich_text('**Bold**');
 assert($rendered === '<p><strong>Bold</strong></p>', 'Markdown should render bold text.');
 $htmlRendered = render_rich_text('<h1>Title</h1><script>alert(1)</script>');
-assert(str_contains($htmlRendered, '<h1>Title</h1>'), 'Allowed HTML should render.');
-assert(!str_contains($htmlRendered, '<script>'), 'Disallowed HTML should be stripped.');
+assert(strpos($htmlRendered, '<h1>Title</h1>') !== false, 'Allowed HTML should render.');
+assert(strpos($htmlRendered, '<script>') === false, 'Disallowed HTML should be stripped.');

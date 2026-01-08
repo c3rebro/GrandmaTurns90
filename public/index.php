@@ -52,7 +52,7 @@ $cookieResponseId = null;
 $cookieToken = null;
 
 // Restore participant access from the saved cookie token (if present).
-if ($participantCookie !== '' && str_contains($participantCookie, ':')) {
+if ($participantCookie !== '' && strpos($participantCookie, ':') !== false) {
     [$cookieResponseId, $cookieToken] = explode(':', $participantCookie, 2);
     if (ctype_digit($cookieResponseId) && $cookieToken !== '') {
         $participantResponse = fetch_response_for_token($pdo, (int) $cookieResponseId, $cookieToken);
