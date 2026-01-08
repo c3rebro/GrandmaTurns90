@@ -20,6 +20,13 @@ function initialize_schema(PDO $pdo): void
         )'
     );
     $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS guest_list (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )'
+    );
+    $pdo->exec(
         'CREATE TABLE IF NOT EXISTS responses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             participant_id INTEGER NOT NULL,
@@ -34,6 +41,12 @@ function initialize_schema(PDO $pdo): void
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             food_text TEXT NOT NULL UNIQUE,
             created_at TEXT NOT NULL
+        )'
+    );
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
         )'
     );
 }
@@ -54,6 +67,120 @@ function ensure_food_entry(PDO $pdo, string $foodText, string $timestamp): void
         ':food_text' => $foodText,
         ':created_at' => $timestamp,
     ]);
+}
+
+function fetch_guest_list(PDO $pdo): array
+{
+    // Query the editable guest list for the survey dropdown.
+    $stmt = $pdo->query('SELECT name FROM guest_list ORDER BY name');
+
+    return $stmt->fetchAll(PDO::FETCH_COLUMN);
+}
+
+function replace_guest_list(PDO $pdo, array $names, string $timestamp): void
+{
+    // Replace the stored guest list with the provided names.
+    $pdo->beginTransaction();
+    $pdo->exec('DELETE FROM guest_list');
+
+    $insertStmt = $pdo->prepare('INSERT INTO guest_list (name, created_at) VALUES (:name, :created_at)');
+    foreach ($names as $name) {
+        $insertStmt->execute([
+            ':name' => $name,
+            ':created_at' => $timestamp,
+        ]);
+    }
+
+    $pdo->commit();
+}
+
+function seed_guest_list(PDO $pdo, array $names, string $timestamp): void
+{
+    // Seed the guest list once to provide initial names for the survey.
+    $stmt = $pdo->query('SELECT COUNT(*) FROM guest_list');
+    $count = (int) $stmt->fetchColumn();
+
+    if ($count === 0 && $names !== []) {
+        replace_guest_list($pdo, $names, $timestamp);
+    }
+}
+
+function fetch_settings(PDO $pdo): array
+{
+    $defaults = [
+        'survey_title' => 'Omas 90. Geburtstag',
+        'gate_question_count' => 1,
+        'gate_questions' => [
+            [
+                'question' => 'Wie lautet der Vorname von Oma?',
+                'answer' => 'ilse',
+            ],
+        ],
+    ];
+
+    $stmt = $pdo->query('SELECT key, value FROM settings');
+    $rows = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+    $title = $rows['survey_title'] ?? $defaults['survey_title'];
+    $count = isset($rows['gate_question_count'])
+        ? max(1, (int) $rows['gate_question_count'])
+        : $defaults['gate_question_count'];
+
+    $questions = $defaults['gate_questions'];
+    if (isset($rows['gate_questions'])) {
+        $decoded = json_decode($rows['gate_questions'], true);
+        if (is_array($decoded)) {
+            $questions = $decoded;
+        }
+    }
+
+    if ($questions === []) {
+        $questions = $defaults['gate_questions'];
+    }
+
+    if (count($questions) < $count) {
+        $questions = array_pad($questions, $count, $defaults['gate_questions'][0]);
+    }
+
+    return [
+        'survey_title' => $title,
+        'gate_question_count' => $count,
+        'gate_questions' => $questions,
+    ];
+}
+
+function update_settings(PDO $pdo, string $title, int $questionCount, array $questions): void
+{
+    $pdo->beginTransaction();
+    $stmt = $pdo->prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (:key, :value)');
+    $stmt->execute([
+        ':key' => 'survey_title',
+        ':value' => $title,
+    ]);
+    $stmt->execute([
+        ':key' => 'gate_question_count',
+        ':value' => (string) $questionCount,
+    ]);
+    $stmt->execute([
+        ':key' => 'gate_questions',
+        ':value' => json_encode($questions, JSON_UNESCAPED_UNICODE),
+    ]);
+    $pdo->commit();
+}
+
+function seed_settings(PDO $pdo): void
+{
+    $stmt = $pdo->query('SELECT COUNT(*) FROM settings');
+    $count = (int) $stmt->fetchColumn();
+
+    if ($count === 0) {
+        update_settings($pdo, 'Omas 90. Geburtstag', 1, [
+            [
+                'question' => 'Wie lautet der Vorname von Oma?',
+                'answer' => 'ilse',
+            ],
+        ]);
+    }
 }
 
 function insert_response(PDO $pdo, string $participantName, int $peopleCount, string $foodText, string $timestamp): void

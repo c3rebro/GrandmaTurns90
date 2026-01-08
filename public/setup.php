@@ -30,6 +30,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $pdo = get_db($dbPath);
         initialize_schema($pdo);
+        $defaultGuests = [
+            'Andreas',
+            'Maria',
+            'Lena',
+            'Thomas',
+            'Sabine',
+        ];
+        $seedTimestamp = (new DateTimeImmutable())->format(DateTimeInterface::ATOM);
+        seed_guest_list($pdo, $defaultGuests, $seedTimestamp);
+        seed_settings($pdo);
 
         $configContents = "<?php\n\nreturn [\n" .
             "    'admin_user' => '" . addslashes($adminUser) . "',\n" .
@@ -73,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <input class="form-control" type="text" id="admin_user" name="admin_user" required>
                                 <label class="form-label" for="admin_password">Admin Passwort</label>
                                 <input class="form-control" type="password" id="admin_password" name="admin_password" required>
-                                <button class="btn btn-primary w-100" type="submit">Setup starten</button>
+                                <button class="btn btn-primary w-100 my-3" type="submit">Setup starten</button>
                             </form>
                         <?php endif; ?>
                     </div>

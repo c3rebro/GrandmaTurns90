@@ -15,27 +15,48 @@ if ($config === null) {
 }
 
 $pdo = get_db($config['db_path']);
-$participants = [
-    'Andreas mit Familie',
+initialize_schema($pdo);
+$defaultParticipants = [
+    'Andreas',
     'Maria',
     'Lena',
     'Thomas',
     'Sabine',
 ];
 
+$seedTimestamp = (new DateTimeImmutable())->format(DateTimeInterface::ATOM);
+seed_guest_list($pdo, $defaultParticipants, $seedTimestamp);
+seed_settings($pdo);
+
+$participants = fetch_guest_list($pdo);
+$settings = fetch_settings($pdo);
+$surveyTitle = $settings['survey_title'];
+$gateQuestionCount = (int) $settings['gate_question_count'];
+$gateQuestions = $settings['gate_questions'];
 $gateError = '';
 $formError = '';
 $successMessage = '';
 $foodEntries = fetch_food_entries($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['gate_check'])) {
-    $givenName = strtolower(trim((string) ($_POST['given_name'] ?? '')));
+    $gatePassed = true;
+    for ($index = 0; $index < $gateQuestionCount; $index++) {
+        $questionConfig = $gateQuestions[$index] ?? null;
+        $expected = $questionConfig['answer'] ?? '';
+        $fieldName = 'gate_answer_' . ($index + 1);
+        $givenAnswer = strtolower(trim((string) ($_POST[$fieldName] ?? '')));
+
+        if ($expected === '' || $givenAnswer === '' || $givenAnswer !== strtolower($expected)) {
+            $gatePassed = false;
+            break;
+        }
+    }
 
     // Gate status is stored in session to unlock the survey flow.
-    if ($givenName === 'ilse') {
+    if ($gatePassed) {
         $_SESSION['gate_passed'] = true;
     } else {
-        $gateError = 'Bitte den richtigen Vornamen eingeben.';
+        $gateError = 'Bitte alle Fragen korrekt beantworten.';
         unset($_SESSION['gate_passed']);
     }
 }
@@ -72,12 +93,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['survey_submit'])) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Omas 90. Geburtstag</title>
+    <title><?= h($surveyTitle) ?></title>
     <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
 </head>
 <body class="bg-light">
     <div class="container py-5">
-        <h1 class="mb-4">Einladung zum 90. Geburtstag</h1>
+        <h1 class="mb-4"><?= h($surveyTitle) ?></h1>
 
         <section class="card shadow-sm mb-4">
             <div class="card-body">
@@ -86,9 +107,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['survey_submit'])) {
                     <p class="text-danger"><?= h($gateError) ?></p>
                 <?php endif; ?>
                 <form method="post">
-                    <label class="form-label" for="given_name">Wie lautet der Vorname von Oma?</label>
-                    <input class="form-control" type="text" id="given_name" name="given_name" required>
-                    <button class="btn btn-primary w-100" type="submit" name="gate_check" value="1">Prüfen</button>
+                    <?php for ($index = 0; $index < $gateQuestionCount; $index++): ?>
+                        <?php $question = $gateQuestions[$index]['question'] ?? ''; ?>
+                        <label class="form-label" for="gate_answer_<?= $index + 1 ?>"><?= h($question) ?></label>
+                        <input class="form-control mb-2" type="text" id="gate_answer_<?= $index + 1 ?>" name="gate_answer_<?= $index + 1 ?>" required>
+                    <?php endfor; ?>
+                    <button class="btn btn-primary w-100 my-3" type="submit" name="gate_check" value="1">Prüfen</button>
                 </form>
                 <?php if (!empty($_SESSION['gate_passed'])): ?>
                     <p class="text-success fw-semibold mb-0">Super! Du darfst teilnehmen.</p>
@@ -96,23 +120,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['survey_submit'])) {
             </div>
         </section>
 
-        <section class="card shadow-sm">
-            <div class="card-body">
-                <h2 class="h4">Teilnahme &amp; Umfrage</h2>
-                <?php if ($formError !== ''): ?>
-                    <p class="text-danger"><?= h($formError) ?></p>
-                <?php endif; ?>
-                <?php if ($successMessage !== ''): ?>
-                    <p class="text-success fw-semibold"><?= h($successMessage) ?></p>
-                <?php endif; ?>
-                <form method="post">
-                    <label class="form-label" for="participant">Teilnehmer auswählen</label>
-                    <select class="form-select" id="participant" name="participant" required>
-                        <option value="">Bitte wählen</option>
-                        <?php foreach ($participants as $participant): ?>
-                            <option value="<?= h($participant) ?>"><?= h($participant) ?></option>
-                        <?php endforeach; ?>
-                    </select>
+        <?php if (!empty($_SESSION['gate_passed'])): ?>
+            <section class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h4">Teilnahme &amp; Umfrage</h2>
+                    <?php if ($formError !== ''): ?>
+                        <p class="text-danger"><?= h($formError) ?></p>
+                    <?php endif; ?>
+                    <?php if ($successMessage !== ''): ?>
+                        <p class="text-success fw-semibold"><?= h($successMessage) ?></p>
+                    <?php endif; ?>
+                    <form method="post">
+                        <label class="form-label" for="participant">Teilnehmer auswählen</label>
+                        <select class="form-select" id="participant" name="participant" required>
+                            <option value="">Bitte wählen</option>
+                            <?php foreach ($participants as $participant): ?>
+                                <option value="<?= h($participant) ?>"><?= h($participant) ?></option>
+                            <?php endforeach; ?>
+                        </select>
 
                     <label class="form-label" for="people_count">Wie viele Personen bringt ihr mit?</label>
                     <input class="form-control" type="number" id="people_count" name="people_count" min="1" required>
@@ -128,10 +153,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['survey_submit'])) {
                     <?php endif; ?>
                     <input class="form-control" type="text" id="food_text" name="food_text" placeholder="z.B. Kartoffelsalat" required>
 
-                    <button class="btn btn-success w-100" type="submit" name="survey_submit" value="1">Antwort speichern</button>
-                </form>
-            </div>
-        </section>
+                        <button class="btn btn-success w-100 my-3" type="submit" name="survey_submit" value="1">Antwort speichern</button>
+                    </form>
+                </div>
+            </section>
+        <?php else: ?>
+            <section class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h4">Teilnahme &amp; Umfrage</h2>
+                    <p class="mb-0">Bitte zuerst die Torfrage korrekt beantworten, damit die Umfrage freigeschaltet wird.</p>
+                </div>
+            </section>
+        <?php endif; ?>
     </div>
     <script src="assets/bootstrap/js/bootstrap.bundle.min.js"></script>
 </body>

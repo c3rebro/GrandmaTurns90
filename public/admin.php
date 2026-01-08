@@ -15,6 +15,18 @@ if ($config === null) {
 }
 
 $pdo = get_db($config['db_path']);
+initialize_schema($pdo);
+$defaultGuests = [
+    'Andreas',
+    'Maria',
+    'Lena',
+    'Thomas',
+    'Sabine',
+];
+
+$seedTimestamp = (new DateTimeImmutable())->format(DateTimeInterface::ATOM);
+seed_guest_list($pdo, $defaultGuests, $seedTimestamp);
+seed_settings($pdo);
 
 $authError = '';
 $actionMessage = '';
@@ -56,6 +68,56 @@ if (!empty($_SESSION['admin_authenticated'])) {
 
         $pdo->commit();
         $actionMessage = 'Eintrag gelöscht.';
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_guest_list'])) {
+        $rawList = (string) ($_POST['guest_list'] ?? '');
+        $names = array_filter(
+            array_map('trim', preg_split('/\r\n|\r|\n/', $rawList)),
+            static fn(string $name): bool => $name !== ''
+        );
+
+        if ($names === []) {
+            $actionMessage = 'Bitte mindestens einen Namen angeben.';
+        } else {
+            $timestamp = (new DateTimeImmutable())->format(DateTimeInterface::ATOM);
+            replace_guest_list($pdo, array_values($names), $timestamp);
+            $actionMessage = 'Gästeliste aktualisiert.';
+        }
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
+        $title = trim((string) ($_POST['survey_title'] ?? ''));
+        $questionCount = (int) ($_POST['gate_question_count'] ?? 1);
+        $questionCount = max(1, min(3, $questionCount));
+        $questions = [];
+        $settingsError = '';
+
+        for ($index = 1; $index <= $questionCount; $index++) {
+            $questionText = trim((string) ($_POST['gate_question_' . $index] ?? ''));
+            $answerText = trim((string) ($_POST['gate_answer_' . $index] ?? ''));
+
+            if ($questionText === '' || $answerText === '') {
+                $settingsError = 'Bitte alle Torfragen und Antworten ausfüllen.';
+                break;
+            }
+
+            $questions[] = [
+                'question' => $questionText,
+                'answer' => $answerText,
+            ];
+        }
+
+        if ($title === '') {
+            $settingsError = 'Bitte einen Titel angeben.';
+        }
+
+        if ($settingsError !== '') {
+            $actionMessage = $settingsError;
+        } else {
+            update_settings($pdo, $title, $questionCount, $questions);
+            $actionMessage = 'Einstellungen aktualisiert.';
+        }
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_response'])) {
@@ -100,6 +162,8 @@ if (!empty($_SESSION['admin_authenticated'])) {
 $editingId = (int) ($_GET['edit'] ?? 0);
 
 $responses = [];
+$guestList = [];
+$settings = [];
 if (!empty($_SESSION['admin_authenticated'])) {
     // Query all responses with participant data for the admin table.
     $stmt = $pdo->query(
@@ -109,6 +173,8 @@ if (!empty($_SESSION['admin_authenticated'])) {
          ORDER BY responses.created_at DESC'
     );
     $responses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $guestList = fetch_guest_list($pdo);
+    $settings = fetch_settings($pdo);
 }
 ?>
 <!doctype html>
@@ -133,16 +199,57 @@ if (!empty($_SESSION['admin_authenticated'])) {
                         <input class="form-control" type="text" id="username" name="username" required>
                         <label class="form-label" for="password">Passwort</label>
                         <input class="form-control" type="password" id="password" name="password" required>
-                        <button class="btn btn-primary w-100" type="submit" name="admin_login" value="1">Einloggen</button>
+                        <button class="btn btn-primary w-100 my-3" type="submit" name="admin_login" value="1">Einloggen</button>
                     </form>
                 <?php else: ?>
                     <form method="post" class="mb-3">
-                        <button class="btn btn-outline-secondary" type="submit" name="logout" value="1">Abmelden</button>
+                        <button class="btn btn-outline-secondary my-3" type="submit" name="logout" value="1">Abmelden</button>
                     </form>
 
                     <?php if ($actionMessage !== ''): ?>
                         <p class="text-success fw-semibold"><?= h($actionMessage) ?></p>
                     <?php endif; ?>
+
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h2 class="h5">Einstellungen</h2>
+                            <form method="post">
+                                <label class="form-label" for="survey_title">Titel der Seite</label>
+                                <input class="form-control" type="text" id="survey_title" name="survey_title" value="<?= h($settings['survey_title'] ?? '') ?>" required>
+
+                                <label class="form-label" for="gate_question_count">Anzahl Torfragen</label>
+                                <select class="form-select" id="gate_question_count" name="gate_question_count">
+                                    <?php for ($count = 1; $count <= 3; $count++): ?>
+                                        <option value="<?= $count ?>" <?= ((int) ($settings['gate_question_count'] ?? 1) === $count) ? 'selected' : '' ?>>
+                                            <?= $count ?>
+                                        </option>
+                                    <?php endfor; ?>
+                                </select>
+
+                                <?php for ($index = 1; $index <= 3; $index++): ?>
+                                    <?php $question = $settings['gate_questions'][$index - 1]['question'] ?? ''; ?>
+                                    <?php $answer = $settings['gate_questions'][$index - 1]['answer'] ?? ''; ?>
+                                    <label class="form-label mt-3" for="gate_question_<?= $index ?>">Torfrage <?= $index ?></label>
+                                    <input class="form-control" type="text" id="gate_question_<?= $index ?>" name="gate_question_<?= $index ?>" value="<?= h($question) ?>">
+                                    <label class="form-label mt-2" for="gate_answer_<?= $index ?>">Antwort <?= $index ?></label>
+                                    <input class="form-control" type="text" id="gate_answer_<?= $index ?>" name="gate_answer_<?= $index ?>" value="<?= h($answer) ?>">
+                                <?php endfor; ?>
+
+                                <button class="btn btn-primary w-100 my-3" type="submit" name="update_settings" value="1">Einstellungen speichern</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h2 class="h5">Gästeliste bearbeiten</h2>
+                            <form method="post">
+                                <label class="form-label" for="guest_list">Ein Name pro Zeile</label>
+                                <textarea class="form-control" id="guest_list" name="guest_list" rows="6" required><?= h(implode("\n", $guestList)) ?></textarea>
+                                <button class="btn btn-primary w-100 my-3" type="submit" name="update_guest_list" value="1">Gästeliste speichern</button>
+                            </form>
+                        </div>
+                    </div>
 
                     <div class="table-responsive">
                         <table class="table align-middle">
@@ -172,7 +279,7 @@ if (!empty($_SESSION['admin_authenticated'])) {
                                                 <td><?= h($response['created_at']) ?></td>
                                                 <td>
                                                     <input type="hidden" name="response_id" value="<?= h((string) $response['id']) ?>">
-                                                    <button class="btn btn-success btn-sm" type="submit" name="update_response" value="1">Speichern</button>
+                                                    <button class="btn btn-success btn-sm my-3" type="submit" name="update_response" value="1">Speichern</button>
                                                 </td>
                                             </form>
                                         </tr>
@@ -186,7 +293,7 @@ if (!empty($_SESSION['admin_authenticated'])) {
                                                 <a class="btn btn-outline-primary btn-sm" href="admin.php?edit=<?= h((string) $response['id']) ?>">Bearbeiten</a>
                                                 <form method="post" onsubmit="return confirm('Wirklich löschen?');">
                                                     <input type="hidden" name="response_id" value="<?= h((string) $response['id']) ?>">
-                                                    <button class="btn btn-outline-danger btn-sm" type="submit" name="delete_response" value="1">Löschen</button>
+                                                    <button class="btn btn-outline-danger btn-sm my-3" type="submit" name="delete_response" value="1">Löschen</button>
                                                 </form>
                                             </td>
                                         </tr>
