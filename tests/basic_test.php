@@ -63,6 +63,7 @@ $count = (int) $foodStatement->fetchColumn();
 assert($count === 0, 'Food entries should be separate from responses.');
 
 $token = 'token-value';
+ensure_food_entry($pdo, 'Kuchen', $timestamp);
 store_response_token($pdo, $responseId, $token, $timestamp);
 $response = fetch_response_for_token($pdo, $responseId, $token);
 assert($response !== null, 'Response should be fetchable by token.');
@@ -76,6 +77,8 @@ assert((int) $updated['people_count'] === 4, 'People count should update for tok
 delete_response_for_participant($pdo, $responseId);
 $deleted = fetch_response_for_token($pdo, $responseId, $token);
 assert($deleted === null, 'Response should be removed after delete.');
+$foodCountAfterDelete = (int) $pdo->query('SELECT COUNT(*) FROM food_entries')->fetchColumn();
+assert($foodCountAfterDelete === 0, 'Food entries should be cleaned up when unused.');
 
 log_page_visit($pdo, '127.0.0.1', '/index.php', $timestamp);
 $visitCount = (int) $pdo->query('SELECT COUNT(*) FROM page_visits')->fetchColumn();

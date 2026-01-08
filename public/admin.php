@@ -72,24 +72,8 @@ if (!empty($_SESSION['admin_authenticated'])) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_response'])) {
         $id = (int) ($_POST['response_id'] ?? 0);
 
-        // Delete response and linked participant in a transaction.
-        $pdo->beginTransaction();
-        $participantIdStmt = $pdo->prepare('SELECT participant_id FROM responses WHERE id = :id');
-        $participantIdStmt->execute([':id' => $id]);
-        $participantId = (int) $participantIdStmt->fetchColumn();
-
-        $deleteResponseStmt = $pdo->prepare('DELETE FROM responses WHERE id = :id');
-        $deleteResponseStmt->execute([':id' => $id]);
-
-        $deleteTokenStmt = $pdo->prepare('DELETE FROM response_tokens WHERE response_id = :id');
-        $deleteTokenStmt->execute([':id' => $id]);
-
-        if ($participantId > 0) {
-            $deleteParticipantStmt = $pdo->prepare('DELETE FROM participants WHERE id = :id');
-            $deleteParticipantStmt->execute([':id' => $participantId]);
-        }
-
-        $pdo->commit();
+        // Delete response and related records in a transaction.
+        delete_response_for_participant($pdo, $id);
         $actionMessage = 'Eintrag gelöscht.';
     }
 

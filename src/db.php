@@ -339,6 +339,8 @@ function delete_response_for_participant(PDO $pdo, int $responseId): void
         $deleteParticipantStmt->execute([':id' => $participantId]);
     }
 
+    $pdo->exec('DELETE FROM food_entries WHERE food_text NOT IN (SELECT food_text FROM responses)');
+
     $pdo->commit();
 }
 
