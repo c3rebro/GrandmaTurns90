@@ -16,6 +16,13 @@ if ($config === null) {
 
 $pdo = get_db($config['db_path']);
 initialize_schema($pdo);
+$now = new DateTimeImmutable();
+$timestamp = $now->format(DateTimeInterface::ATOM);
+$cutoff = $now->modify('-24 hours')->format(DateTimeInterface::ATOM);
+$clientIp = get_client_ip();
+purge_old_ip_logs($pdo, $cutoff);
+log_page_visit($pdo, $clientIp, $_SERVER['REQUEST_URI'] ?? 'admin.php', $timestamp);
+
 $defaultGuests = [
     'Andreas',
     'Maria',
@@ -24,12 +31,15 @@ $defaultGuests = [
     'Sabine',
 ];
 
-$seedTimestamp = (new DateTimeImmutable())->format(DateTimeInterface::ATOM);
+$seedTimestamp = $timestamp;
 seed_guest_list($pdo, $defaultGuests, $seedTimestamp);
 seed_settings($pdo);
 
 $authError = '';
 $actionMessage = '';
+// Track failed login attempts to temporarily block repeated failures.
+$loginAttempt = fetch_login_attempt($pdo, $clientIp);
+$loginBlocked = $loginAttempt !== null && (int) $loginAttempt['attempt_count'] >= 3;
 
 if (isset($_POST['logout'])) {
     unset($_SESSION['admin_authenticated']);
@@ -37,36 +47,33 @@ if (isset($_POST['logout'])) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_login'])) {
+    if ($loginBlocked) {
+        $authError = 'Zu viele Fehlversuche. Bitte versuche es in 24 Stunden erneut.';
+    }
+
     $username = trim((string) ($_POST['username'] ?? ''));
     $password = (string) ($_POST['password'] ?? '');
 
-    if ($username === $config['admin_user'] && password_verify($password, $config['admin_password_hash'])) {
-        $_SESSION['admin_authenticated'] = true;
-        redirect('admin.php');
-    }
+    if ($authError === '') {
+        if ($username === $config['admin_user'] && password_verify($password, $config['admin_password_hash'])) {
+            $_SESSION['admin_authenticated'] = true;
+            reset_login_attempts($pdo, $clientIp);
+            redirect('admin.php');
+        }
 
-    $authError = 'Login fehlgeschlagen.';
+        record_login_failure($pdo, $clientIp, $timestamp);
+        $authError = 'Login fehlgeschlagen. Nach 3 Fehlversuchen erfolgt eine temporäre Sperre.';
+        $loginAttempt = fetch_login_attempt($pdo, $clientIp);
+        $loginBlocked = $loginAttempt !== null && (int) $loginAttempt['attempt_count'] >= 3;
+    }
 }
 
 if (!empty($_SESSION['admin_authenticated'])) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_response'])) {
         $id = (int) ($_POST['response_id'] ?? 0);
 
-        // Delete response and linked participant in a transaction.
-        $pdo->beginTransaction();
-        $participantIdStmt = $pdo->prepare('SELECT participant_id FROM responses WHERE id = :id');
-        $participantIdStmt->execute([':id' => $id]);
-        $participantId = (int) $participantIdStmt->fetchColumn();
-
-        $deleteResponseStmt = $pdo->prepare('DELETE FROM responses WHERE id = :id');
-        $deleteResponseStmt->execute([':id' => $id]);
-
-        if ($participantId > 0) {
-            $deleteParticipantStmt = $pdo->prepare('DELETE FROM participants WHERE id = :id');
-            $deleteParticipantStmt->execute([':id' => $participantId]);
-        }
-
-        $pdo->commit();
+        // Delete response and related records in a transaction.
+        delete_response_for_participant($pdo, $id);
         $actionMessage = 'Eintrag gelöscht.';
     }
 
@@ -88,14 +95,23 @@ if (!empty($_SESSION['admin_authenticated'])) {
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
         $title = trim((string) ($_POST['survey_title'] ?? ''));
-        $questionCount = (int) ($_POST['gate_question_count'] ?? 1);
-        $questionCount = max(1, min(3, $questionCount));
+        $selectedCount = (int) ($_POST['gate_question_count'] ?? 1);
+        $selectedCount = max(1, min(3, $selectedCount));
         $questions = [];
         $settingsError = '';
+        $maxFilled = 0;
 
-        for ($index = 1; $index <= $questionCount; $index++) {
+        for ($index = 1; $index <= 3; $index++) {
             $questionText = trim((string) ($_POST['gate_question_' . $index] ?? ''));
             $answerText = trim((string) ($_POST['gate_answer_' . $index] ?? ''));
+
+            if ($questionText === '' && $answerText === '') {
+                if ($index <= $selectedCount) {
+                    $settingsError = 'Bitte alle Torfragen und Antworten ausfüllen.';
+                    break;
+                }
+                continue;
+            }
 
             if ($questionText === '' || $answerText === '') {
                 $settingsError = 'Bitte alle Torfragen und Antworten ausfüllen.';
@@ -106,6 +122,7 @@ if (!empty($_SESSION['admin_authenticated'])) {
                 'question' => $questionText,
                 'answer' => $answerText,
             ];
+            $maxFilled = $index;
         }
 
         if ($title === '') {
@@ -115,7 +132,11 @@ if (!empty($_SESSION['admin_authenticated'])) {
         if ($settingsError !== '') {
             $actionMessage = $settingsError;
         } else {
-            update_settings($pdo, $title, $questionCount, $questions);
+            $hintsContent = (string) ($_POST['hints_content'] ?? '');
+            $footerContent = (string) ($_POST['footer_content'] ?? '');
+
+            $questionCount = max($selectedCount, $maxFilled);
+            update_settings($pdo, $title, $questionCount, $questions, $hintsContent, $footerContent);
             $actionMessage = 'Einstellungen aktualisiert.';
         }
     }
@@ -127,8 +148,6 @@ if (!empty($_SESSION['admin_authenticated'])) {
         $foodText = trim((string) ($_POST['food_text'] ?? ''));
 
         if ($participantName !== '' && $peopleCount > 0 && $foodText !== '') {
-            $timestamp = (new DateTimeImmutable())->format(DateTimeInterface::ATOM);
-
             // Update participant and response records based on admin edits.
             $participantStmt = $pdo->prepare('SELECT participant_id FROM responses WHERE id = :id');
             $participantStmt->execute([':id' => $id]);
@@ -195,11 +214,14 @@ if (!empty($_SESSION['admin_authenticated'])) {
                         <p class="text-danger"><?= h($authError) ?></p>
                     <?php endif; ?>
                     <form method="post">
+                        <?php if ($loginBlocked): ?>
+                            <p class="text-danger">Diese IP-Adresse ist vorübergehend gesperrt.</p>
+                        <?php endif; ?>
                         <label class="form-label" for="username">Benutzername</label>
-                        <input class="form-control" type="text" id="username" name="username" required>
+                        <input class="form-control" type="text" id="username" name="username" required <?= $loginBlocked ? 'disabled' : '' ?>>
                         <label class="form-label" for="password">Passwort</label>
-                        <input class="form-control" type="password" id="password" name="password" required>
-                        <button class="btn btn-primary w-100 my-3" type="submit" name="admin_login" value="1">Einloggen</button>
+                        <input class="form-control" type="password" id="password" name="password" required <?= $loginBlocked ? 'disabled' : '' ?>>
+                        <button class="btn btn-primary w-100 my-3" type="submit" name="admin_login" value="1" <?= $loginBlocked ? 'disabled' : '' ?>>Einloggen</button>
                     </form>
                 <?php else: ?>
                     <form method="post" class="mb-3">
@@ -234,6 +256,12 @@ if (!empty($_SESSION['admin_authenticated'])) {
                                     <label class="form-label mt-2" for="gate_answer_<?= $index ?>">Antwort <?= $index ?></label>
                                     <input class="form-control" type="text" id="gate_answer_<?= $index ?>" name="gate_answer_<?= $index ?>" value="<?= h($answer) ?>">
                                 <?php endfor; ?>
+
+                                <label class="form-label mt-3" for="hints_content">Hinweise (HTML oder Markdown)</label>
+                                <textarea class="form-control" id="hints_content" name="hints_content" rows="4"><?= h($settings['hints_content'] ?? '') ?></textarea>
+
+                                <label class="form-label mt-3" for="footer_content">Footer (HTML oder Markdown)</label>
+                                <textarea class="form-control" id="footer_content" name="footer_content" rows="3"><?= h($settings['footer_content'] ?? '') ?></textarea>
 
                                 <button class="btn btn-primary w-100 my-3" type="submit" name="update_settings" value="1">Einstellungen speichern</button>
                             </form>
