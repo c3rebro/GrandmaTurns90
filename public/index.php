@@ -15,7 +15,7 @@ if ($config === null) {
 }
 
 $pdo = get_db($config['db_path']);
-$participants = [
+$defaultParticipants = [
     'Andreas mit Familie',
     'Maria',
     'Lena',
@@ -23,6 +23,10 @@ $participants = [
     'Sabine',
 ];
 
+$seedTimestamp = (new DateTimeImmutable())->format(DateTimeInterface::ATOM);
+seed_guest_list($pdo, $defaultParticipants, $seedTimestamp);
+
+$participants = fetch_guest_list($pdo);
 $gateError = '';
 $formError = '';
 $successMessage = '';
@@ -88,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['survey_submit'])) {
                 <form method="post">
                     <label class="form-label" for="given_name">Wie lautet der Vorname von Oma?</label>
                     <input class="form-control" type="text" id="given_name" name="given_name" required>
-                    <button class="btn btn-primary w-100" type="submit" name="gate_check" value="1">Prüfen</button>
+                    <button class="btn btn-primary w-100 my-3" type="submit" name="gate_check" value="1">Prüfen</button>
                 </form>
                 <?php if (!empty($_SESSION['gate_passed'])): ?>
                     <p class="text-success fw-semibold mb-0">Super! Du darfst teilnehmen.</p>
@@ -96,23 +100,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['survey_submit'])) {
             </div>
         </section>
 
-        <section class="card shadow-sm">
-            <div class="card-body">
-                <h2 class="h4">Teilnahme &amp; Umfrage</h2>
-                <?php if ($formError !== ''): ?>
-                    <p class="text-danger"><?= h($formError) ?></p>
-                <?php endif; ?>
-                <?php if ($successMessage !== ''): ?>
-                    <p class="text-success fw-semibold"><?= h($successMessage) ?></p>
-                <?php endif; ?>
-                <form method="post">
-                    <label class="form-label" for="participant">Teilnehmer auswählen</label>
-                    <select class="form-select" id="participant" name="participant" required>
-                        <option value="">Bitte wählen</option>
-                        <?php foreach ($participants as $participant): ?>
-                            <option value="<?= h($participant) ?>"><?= h($participant) ?></option>
-                        <?php endforeach; ?>
-                    </select>
+        <?php if (!empty($_SESSION['gate_passed'])): ?>
+            <section class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h4">Teilnahme &amp; Umfrage</h2>
+                    <?php if ($formError !== ''): ?>
+                        <p class="text-danger"><?= h($formError) ?></p>
+                    <?php endif; ?>
+                    <?php if ($successMessage !== ''): ?>
+                        <p class="text-success fw-semibold"><?= h($successMessage) ?></p>
+                    <?php endif; ?>
+                    <form method="post">
+                        <label class="form-label" for="participant">Teilnehmer auswählen</label>
+                        <select class="form-select" id="participant" name="participant" required>
+                            <option value="">Bitte wählen</option>
+                            <?php foreach ($participants as $participant): ?>
+                                <option value="<?= h($participant) ?>"><?= h($participant) ?></option>
+                            <?php endforeach; ?>
+                        </select>
 
                     <label class="form-label" for="people_count">Wie viele Personen bringt ihr mit?</label>
                     <input class="form-control" type="number" id="people_count" name="people_count" min="1" required>
@@ -128,10 +133,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['survey_submit'])) {
                     <?php endif; ?>
                     <input class="form-control" type="text" id="food_text" name="food_text" placeholder="z.B. Kartoffelsalat" required>
 
-                    <button class="btn btn-success w-100" type="submit" name="survey_submit" value="1">Antwort speichern</button>
-                </form>
-            </div>
-        </section>
+                        <button class="btn btn-success w-100 my-3" type="submit" name="survey_submit" value="1">Antwort speichern</button>
+                    </form>
+                </div>
+            </section>
+        <?php else: ?>
+            <section class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h4">Teilnahme &amp; Umfrage</h2>
+                    <p class="mb-0">Bitte zuerst die Torfrage korrekt beantworten, damit die Umfrage freigeschaltet wird.</p>
+                </div>
+            </section>
+        <?php endif; ?>
     </div>
     <script src="assets/bootstrap/js/bootstrap.bundle.min.js"></script>
 </body>
