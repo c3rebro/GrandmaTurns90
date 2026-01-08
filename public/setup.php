@@ -77,6 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <?php if ($success !== ''): ?>
                             <p class="text-success fw-semibold"><?= h($success) ?></p>
                             <p><a class="link-primary" href="index.php">Zur Umfrage</a></p>
+                            <p><a class="link-primary" href="admin.php">Zum Admin-Login</a></p>
                         <?php else: ?>
                             <form method="post">
                                 <label class="form-label" for="admin_user">Admin Benutzername</label>
