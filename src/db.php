@@ -92,6 +92,12 @@ function ensure_food_entry(PDO $pdo, string $foodText, string $timestamp): void
     ]);
 }
 
+function prune_unused_food_entries(PDO $pdo): void
+{
+    // Remove food entries that are no longer referenced by any response.
+    $pdo->exec('DELETE FROM food_entries WHERE food_text NOT IN (SELECT food_text FROM responses)');
+}
+
 function fetch_guest_list(PDO $pdo): array
 {
     // Query the editable guest list for the survey dropdown.
@@ -319,6 +325,8 @@ function update_response_for_participant(
         ':food_text' => $foodText,
         ':id' => $responseId,
     ]);
+
+    prune_unused_food_entries($pdo);
 }
 
 function delete_response_for_participant(PDO $pdo, int $responseId): void
@@ -339,7 +347,7 @@ function delete_response_for_participant(PDO $pdo, int $responseId): void
         $deleteParticipantStmt->execute([':id' => $participantId]);
     }
 
-    $pdo->exec('DELETE FROM food_entries WHERE food_text NOT IN (SELECT food_text FROM responses)');
+    prune_unused_food_entries($pdo);
 
     $pdo->commit();
 }
