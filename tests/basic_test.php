@@ -69,10 +69,13 @@ $response = fetch_response_for_token($pdo, $responseId, $token);
 assert($response !== null, 'Response should be fetchable by token.');
 assert($response['participant_name'] === 'Testperson', 'Token response should include participant name.');
 
+ensure_food_entry($pdo, 'Salat', $timestamp);
 update_response_for_participant($pdo, $responseId, 'Neue Person', 4, 'Salat');
 $updated = fetch_response_for_token($pdo, $responseId, $token);
 assert($updated['participant_name'] === 'Neue Person', 'Participant name should update for token response.');
 assert((int) $updated['people_count'] === 4, 'People count should update for token response.');
+$foodsAfterUpdate = $pdo->query('SELECT food_text FROM food_entries ORDER BY food_text')->fetchAll(PDO::FETCH_COLUMN);
+assert($foodsAfterUpdate === ['Salat'], 'Unused food entries should be pruned after update.');
 
 delete_response_for_participant($pdo, $responseId);
 $deleted = fetch_response_for_token($pdo, $responseId, $token);

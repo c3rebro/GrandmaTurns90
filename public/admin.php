@@ -37,6 +37,10 @@ seed_settings($pdo);
 
 $authError = '';
 $actionMessage = '';
+if (!empty($_SESSION['action_message'])) {
+    $actionMessage = (string) $_SESSION['action_message'];
+    unset($_SESSION['action_message']);
+}
 // Track failed login attempts to temporarily block repeated failures.
 $loginAttempt = fetch_login_attempt($pdo, $clientIp);
 $loginBlocked = $loginAttempt !== null && (int) $loginAttempt['attempt_count'] >= 3;
@@ -171,7 +175,9 @@ if (!empty($_SESSION['admin_authenticated'])) {
             ]);
 
             ensure_food_entry($pdo, ucfirst($foodText), $timestamp);
-            $actionMessage = 'Eintrag aktualisiert.';
+            prune_unused_food_entries($pdo);
+            $_SESSION['action_message'] = 'Eintrag aktualisiert.';
+            redirect('admin.php');
         } else {
             $actionMessage = 'Bitte alle Felder ausfüllen.';
         }
